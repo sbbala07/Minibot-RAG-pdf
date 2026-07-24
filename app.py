@@ -68,7 +68,11 @@ def process_pdf(files):
         else:
             vectorstore.add_documents(chunks)
         
-        processed.append(f"{file_path.split('/')[-1].split(chr(92))[-1]} — {len(chunks)} chunks")
+        # Get clean filename and remove duplicate .pdf extension if present
+        filename = file_path.split('/')[-1].split(chr(92))[-1]
+        if filename.endswith('.pdf.pdf'):
+            filename = filename[:-4]  # Remove the extra .pdf. Take the string but remove the last 4 characters.
+        processed.append(f"{filename} — {len(chunks)} chunks")
     
     return "✅ Processed:\n" + "\n".join(processed)
 
