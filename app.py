@@ -1,5 +1,6 @@
 # ----------------------------------------------------
 # RAG PDF Chatbot using Ollama + LangChain + FAISS + Gradio
+# Multi- PDF Support
 # ----------------------------------------------------
 
 import gradio as gr
@@ -10,51 +11,21 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.prompts import ChatPromptTemplate
 
-# ----------------------------------------------------
-# 1. LOAD PDF DOCUMENT
-# ----------------------------------------------------
 
-print("Loading PDF...")
-
-pdf_path = "policy.pdf"  # PDF must be in same folder
-loader = PyPDFLoader(pdf_path)
-documents = loader.load()
-
-# ----------------------------------------------------
-# 2. SPLIT DOCUMENT INTO SMALL CHUNKS
-# ----------------------------------------------------
-
-print("Splitting text...")
-
+# Tools ready before any PDF arrives (It doesn't change)
 text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=500,
-    chunk_overlap=50
+    chunk_size = 500,
+    chunk_overlap = 50
 )
-chunks = text_splitter.split_documents(documents)
+
+embeddings =  OllamaEmbeddings(model = "nomic-embed-text")
+
+llm = OllamaLLM(model="llama3.2:1b")  # Small LLM to avoid GPU/RAM issues
+
+vectorstore = None  # Empty shelf- waiting for first pdf
 
 # ----------------------------------------------------
-# 3. CREATE EMBEDDINGS + FAISS VECTOR STORE
-# ----------------------------------------------------
-
-print("Creating embeddings & vector store...")
-
-# Embedding model (lightweight & CPU-friendly)
-embeddings = OllamaEmbeddings(model="nomic-embed-text")
-
-# Store document embeddings in FAISS
-vectorstore = FAISS.from_documents(chunks, embeddings)
-
-# ----------------------------------------------------
-# 4. LOAD LOCAL LLM (SMALL MODEL – LOW RAM FRIENDLY)
-# ----------------------------------------------------
-
-print("Loading LLM...")
-
-# Small LLM to avoid GPU/RAM issues
-llm = OllamaLLM(model="llama3.2:1b")
-
-# ----------------------------------------------------
-# 5. PROMPT TEMPLATE FOR RAG
+# 2. PROMPT TEMPLATE
 # ----------------------------------------------------
 
 prompt_template = ChatPromptTemplate.from_template(
@@ -73,15 +44,49 @@ Question:
 )
 
 # ----------------------------------------------------
-# 6. RAG CHAT FUNCTION
+# 3. PDF PROCESSING FUNCTION
+# ----------------------------------------------------
+
+def process_pdf(files):
+    global vectorstore
+    
+    if files is None:
+        return "⚠️ No files uploaded."
+    
+    # files is a list — loop through each uploaded file
+    processed = []
+    for file in files:
+        # Extract the file path correctly
+        file_path = file.name if hasattr(file, 'name') else file
+        
+        loader = PyPDFLoader(file_path)
+        documents = loader.load()
+        chunks = text_splitter.split_documents(documents)
+        
+        if vectorstore is None:
+            vectorstore = FAISS.from_documents(chunks, embeddings)
+        else:
+            vectorstore.add_documents(chunks)
+        
+        processed.append(f"{file_path.split('/')[-1].split(chr(92))[-1]} — {len(chunks)} chunks")
+    
+    return "✅ Processed:\n" + "\n".join(processed)
+
+# ----------------------------------------------------
+# 4. RAG CHAT FUNCTION
 # ----------------------------------------------------
 
 def rag_chat(user_question, history):
     if history is None:
         history = []
 
+    # Guard — no PDF uploaded yet
+    if vectorstore is None:
+        history.append({"role": "assistant", "content": "⚠️ Please upload a PDF first before asking questions."})
+        return history   # Stop the function there itself if file not uploaded
+
     # Search for context
-    docs = vectorstore.similarity_search(user_question, k=3)
+    docs = vectorstore.similarity_search(user_question, k=3)   # Top 3 most similar chunks
     context = "\n\n".join(doc.page_content for doc in docs)
 
     # Format the prompt
@@ -99,33 +104,42 @@ def rag_chat(user_question, history):
     
     return history
 
-
 # ----------------------------------------------------
-# 7. GRADIO UI
+# 5. GRADIO UI
 # ----------------------------------------------------
 
 print("Launching Gradio UI...")
 
 with gr.Blocks() as demo:
     gr.Markdown("## 📄 MiniBot – RAG PDF Chatbot")
-
+    
+    # PDF Upload Section
+    with gr.Row():
+        file_input = gr.File(
+            label="Upload PDF(s)",
+            file_types=[".pdf"],
+            file_count="multiple"  # Can select multiple file at once & upload together
+        )
+        upload_btn = gr.Button("Process PDF")
+    
+    status_box = gr.Textbox(
+        label="Upload Status",
+        interactive=False  # read only system msg
+    )
+    
+    # Chat Section
     chatbot = gr.Chatbot(label="Chat History")
-
+    
     msg = gr.Textbox(
         label="Ask a question from the PDF",
         placeholder="Type your question here..."
     )
-
-    clear = gr.Button("Clear Chat")
-
-    msg.submit(rag_chat, [msg, chatbot], [chatbot]).then(lambda: "", None, [msg])
     
-
-    clear.click(
-        lambda: [],
-        None,
-        chatbot
-    )
+    clear = gr.Button("Clear Chat")
+    
+    # Wiring
+    upload_btn.click(process_pdf, [file_input], [status_box])
+    msg.submit(rag_chat, [msg, chatbot], [chatbot]).then(lambda: "", None, [msg])
+    clear.click(lambda: [], None, chatbot)
 
 demo.launch(debug=True)
-

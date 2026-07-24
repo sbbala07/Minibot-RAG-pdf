@@ -1,0 +1,45 @@
+Steps
+
+1. Install python, VS code
+
+2. Create app.py python file in VS code
+
+3. Install Ollama from Google
+
+4. In Command prompt, install "Ollama serve", then check "Ollama list". If nothing shows
+
+5. Check "netstat -ano | findstr 11434" for checking the port. If nothing is shown. the port is empty. Ollama already running and start pulling the Ollama models("ollama pull llama3.2:1b" and "ollama pull nomic-embed-text") in our case.
+
+6. After pulling and check the ollama list, it should show the installed ollama models.
+
+7. Then go to the project path, "cd C:\Minibot
+
+8. Inside the path, Run app.py. If any dependencies not recognized. We need to install the dependencies in our folder.
+
+9. In our case, run "pip install -U langchain langchain-community langchain-ollama faiss-cpu gradio pypdf" or 
+"python -m pip install -U langchain langchain-community langchain-ollama faiss-cpu gradio pypdf" 
+
+10. If everything done, run inside the project folder C:\Minibot> python app.py
+
+11. The output looks like with link http://127.0.0.1:7860. Go to the link as ask the question.
+
+12. Push it to GitHub. Download and install git.
+
+13. Close all before command prompt. Reopen and check git version "git --version"
+
+14. It will show the version " git version.....". You confirmed.
+
+15. Go to project folder cd C:\Minibot>dir ----> Checking the files inside the folder(app.py and policy.pdf)
+
+16. Tell Git “this is a project”  C:\Minibot>git init
+Initialized empty Git repository in C:/Minibot/.git/
+
+17. Create .gitignore (VERY IMPORTANT). We must NOT upload:
+
+Python cache
+
+Virtual env
+
+Large temporary files
+
+Create .gitignore: 
