@@ -90,8 +90,18 @@ def rag_chat(user_question, history):
         return history   # Stop the function there itself if file not uploaded
 
     # Search for context
-    docs = vectorstore.similarity_search(user_question, k=3)   # Top 3 most similar chunks
+    docs = vectorstore.similarity_search(user_question, k=3)
     context = "\n\n".join(doc.page_content for doc in docs)
+
+    # Extract citations from retrieved chunks
+    citations = []
+    for doc in docs:
+        source = doc.metadata.get("source", "Unknown") # Safe access — returns default if key missing instead of crashing. Unknown- if not available
+        source = source.split('/')[-1].split(chr(92))[-1]  # Extract filename only
+        page = doc.metadata.get("page", "?")
+        citation = f"• {source} — Page {page + 1}" # Metadata page index starts at 0, humans count from 1
+        if citation not in citations: # Prevents duplicate sources when multiple chunks come from same page
+            citations.append(citation)
 
     # Format the prompt
     prompt = prompt_template.format(
@@ -102,9 +112,12 @@ def rag_chat(user_question, history):
     # Get LLM response
     answer = llm.invoke(prompt)
 
+    citation_text = "\n\n📄 Sources:\n" + "\n".join(citations)
+    full_answer = answer + citation_text
+
     # Append as dictionaries
     history.append({"role": "user", "content": user_question})
-    history.append({"role": "assistant", "content": answer})
+    history.append({"role": "assistant", "content": full_answer})
     
     return history
 
