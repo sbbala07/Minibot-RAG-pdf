@@ -89,8 +89,20 @@ def rag_chat(user_question, history):
         history.append({"role": "assistant", "content": "⚠️ Please upload a PDF first before asking questions."})
         return history   # Stop the function there itself if file not uploaded
 
-    # Search for context
-    docs = vectorstore.similarity_search(user_question, k=3)
+    # Build conversational context from recent history
+    recent_history = history[-6:]  # Get last 3 conversation, 6 lines with question and answer
+    history_text = ""              # Empty string
+    for message in recent_history:  
+        role = message["role"].upper() # Get role user/assistant and upper for LLM readability
+        content = message["content"]   # Get content
+        history_text += f"{role}: {content}\n\n"  # Role with content
+
+    # Combine history with current question for better retrieval
+    search_query = history_text + f"USER: {user_question}"
+
+    # Search using full conversational context
+    docs = vectorstore.similarity_search(search_query, k=3)
+    
     context = "\n\n".join(doc.page_content for doc in docs)
 
     # Extract citations from retrieved chunks
